@@ -1,0 +1,15 @@
+self.addEventListener('install',()=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(!u.pathname.endsWith('/base.html'))return;e.respondWith((async()=>{const r=await fetch(e.request);let t=await r.text();
+t=t.replace('var sm=[{id:"AG-01",name:"Betina Lindor",first:"Betina",last:"Lindor",balance:50000,phone:"44 99 4263",code:"+509",capital:50000,bultos:3,pais:"Haiti"}','var sm=[{id:"AG-00",name:"FLEURANVIL Herace",first:"FLEURANVIL",last:"Herace",balance:0,phone:"829 829 215 5657",code:"+1-829",capital:0,bultos:0,pais:"RD",doc:"ID65734482",username:"heraceherace@gmail.com"},{id:"AG-01",name:"Betina Lindor",first:"Betina",last:"Lindor",balance:50000,phone:"44 99 4263",code:"+509",capital:50000,bultos:3,pais:"Haiti"}');
+t=t.replace('return{id:\`ID657344\${52+t}\`,name:o[t],last:n[t],first:n[t],phone:\`829 215 56\${57+t}\`,code:"+1-829",balance:1200+t*150,commission:250+t*10,pais:"RD"}}),Vu=','return{id:\`ID657344\${52+t}\`,name:o[t],last:n[t],first:n[t],phone:\`829 215 56\${57+t}\`,code:"+1-829",balance:1200+t*150,commission:250+t*10,pais:"RD"}}).concat([{id:"ID65734452",name:"DANIA",last:"SAINTHILAIRE",first:"DANIA",phone:"849 372 7884",code:"+1-849",balance:0,commission:0,pais:"RD",username:"daniasaithilaire@gmail.com"},{id:"ID-PENDIENTE",name:"EDITA",last:"ALBERTO",first:"EDITA",phone:"829 964 4061",code:"+1-829",balance:0,commission:0,pais:"RD",username:"editaalberto@gmail.com"}]),Vu=');
+t=t.replace('Expediteurs (15 Remitentes)','Expediteurs (17 Remitentes)');
+t=t.replace(/829 215 5657 \(FLEURANVIL Herace\)/g,'829 829 215 5657 (FLEURANVIL Herace)');
+t=t.replace(/remitenteId:"ID65734452"/g,'remitenteId:"ID65734482"');
+const a='u("div",{className:"mt-4 text-[9px] text-gray-500',b='u("div",{className:"mt-5 bg-[#0a245e]',i=t.indexOf(a),j=t.indexOf(b,i);if(i>=0&&j>i)t=t.slice(0,i)+'u("div",{className:"mt-4 h-2"}),'+t.slice(j);
+t=t.replace('className:"flex flex-col md:flex-row md:items-center justify-between gap-3"','className:"flex flex-col items-center justify-center text-center gap-3"');
+t=t.replace('className:"text-[11px] leading-tight"','className:"text-[11px] leading-tight text-center"');
+t=t.replace(/Número \/ Beneficiario/g,'Número');
+t=t.replace(/u\("div",\{children:r\("label",\{className:"text-\[11px\] font-bold",children:"Nombre beneficiario"\}\),r\("input",\{value:Y\.beneficiario,onChange:\(a\)=>gt\(\{\.\.\.Y,beneficiario:a\.target\.value\}\),className:"w-full border rounded-lg px-3 py-2 text-\[13px\] mt-1 bg-white",placeholder:"RENETTE Elissaint"\}\)\}\)/,'');
+t=t.replace('Numeración correlativa antigua→reciente 01,02,03...','Numeración correlativa reciente→antigua: 01 = más reciente, 02 = anterior, y así sucesivamente');
+return new Response(t,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}})})() )});
