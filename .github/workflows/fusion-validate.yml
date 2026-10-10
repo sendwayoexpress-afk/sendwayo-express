@@ -33,7 +33,7 @@ jobs:
           from pathlib import Path
           import re
           html=Path('public/index.html').read_text(encoding='utf-8')
-          scripts=[s for s in re.findall(r'<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>', html, re.I) if s.strip()]
+          scripts=[s for s in re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', html, re.I) if s.strip()]
           if not scripts: raise SystemExit('No inline JavaScript found')
           for i,code in enumerate(scripts,1): Path(f'/tmp/sw-fusion-{i}.js').write_text(code,encoding='utf-8')
           print('Extracted inline scripts:',len(scripts))
