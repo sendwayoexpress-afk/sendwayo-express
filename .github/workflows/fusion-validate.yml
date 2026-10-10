@@ -16,7 +16,7 @@ jobs:
           node-version: 22
       - name: Check Firebase target and deployment config
         run: |
-          node -e "const c=require('./.firebaserc'); if(c.projects.default!=='sendwayo-express-app-101') throw new Error('Wrong Firebase project');"
+          node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('.firebaserc','utf8')); if(c.projects.default!=='sendwayo-express-app-101') throw new Error('Wrong Firebase project');"
           node -e "const c=require('./firebase.json'); if(c.hosting.public!=='public'||c.functions[0].source!=='backend/functions') throw new Error('Invalid deployment paths');"
       - name: Check backend syntax
         run: |
