@@ -33,7 +33,17 @@ jobs:
               echo "FIREBASE_DATABASE_HOST=$DB_HOST"
               DB_STATUS="$(curl -sS --max-time 12 -o /tmp/sendwayo-db-probe.json -w '%{http_code}' "$DATABASE_URL/.json?shallow=true" || true)"
               echo "FIREBASE_DATABASE_ANONYMOUS_HTTP=$DB_STATUS"
-              if [ "$DB_STATUS" = "200" ]; then echo "::warning::Realtime Database allows an anonymous shallow read; review its security rules before moving financial data."; fi
+              if [ "$DB_STATUS" = "200" ]; then
+                python - <<'PY'
+                import json
+                try:
+                    data=json.load(open('/tmp/sendwayo-db-probe.json',encoding='utf-8'))
+                    print('FIREBASE_DATABASE_ANONYMOUS_ROOT_TYPE',type(data).__name__)
+                    print('FIREBASE_DATABASE_ANONYMOUS_ROOT_KEY_COUNT',len(data) if isinstance(data,dict) else 0)
+                except Exception: print('FIREBASE_DATABASE_PROBE_PARSE=failed')
+                PY
+                echo "::warning::Realtime Database returned HTTP 200 for an unauthenticated shallow read. Treat database rules as potentially public until explicitly verified."
+              fi
               if grep -qiE 'Permission denied|not authorized|unauthorized' /tmp/sendwayo-db-probe.json 2>/dev/null; then echo "FIREBASE_DATABASE_ANONYMOUS_READ=DENIED"; fi
             else
               echo "::warning::The live web config contains no databaseURL; Realtime Database availability needs confirmation."
