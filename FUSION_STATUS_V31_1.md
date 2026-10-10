@@ -1,40 +1,35 @@
 # SENDWAYO EXPRESS — Fusión Punto A + Punto B (V31.1)
 
-## Estado
-**Rama de revisión; NO publicada en producción.** No se modificó `main`, el sitio público actual ni los balances reales.
+## Estado real de entrega
+**Rama de revisión; todavía no publicada en producción.** No se ha cambiado `main`, el Hosting activo ni los balances.
 
-- **Punto A / autenticación y backend objetivo:** Firebase `sendwayo-express-app-101`.
-- **Punto B / repositorio de revisión:** `sendwayo-oficial/sendwayo-express`.
-- **Rama de trabajo:** `fusion-point-a-b-20261010`.
-- **Revisión:** https://github.com/sendwayo-oficial/sendwayo-express/pull/17
+- Proyecto Firebase de destino: `sendwayo-express-app-101`.
+- Repositorio de despliegue preparado: `sendwayoexpress-afk/sendwayo-express`.
+- Rama: `fusion-a-b-v31-20261010`.
+- PR del Punto A: https://github.com/sendwayoexpress-afk/sendwayo-express/pull/2
+- PR complementario de revisión del Punto B: https://github.com/sendwayo-oficial/sendwayo-express/pull/17
 
-## Correcciones aplicadas en la rama
-- `index.html`: conserva la interfaz de Punto A como base; mantiene el comprobante y el autocompletado de Punto B.
-- El inicio de sesión usa Firebase Authentication y el perfil/rol de Firebase, no contraseñas locales ni roles enviados por el navegador.
-- La pantalla administrativa combina perfiles activos con cuentas por UID; deduplica identidades por correo y conserva los saldos como campos distintos `balanceDOP` y `balanceHTG`. Nunca suma balances; los agentes siempre se muestran sin balance ni comisión personal.
-- La lista de operaciones y las notificaciones se alimentan de listeners Firestore. Se quitó el efecto que podía reemplazar notificaciones de Firestore por una lista de `localStorage`.
-- Se deshabilitó la navegación a las antiguas colas de ajuste y banca del Punto B que cambiaban datos financieros sólo en `localStorage`. Los ajustes de balance/comisión deben pasar por el callable seguro de Punto A y los depósitos/envíos por el flujo de operaciones del servidor.
-- Ajustes: el backend normaliza identificadores de administración, admite establecer/acreditar/descontar montos sin saldo negativo, utiliza clave de idempotencia y genera registro de auditoría y libro contable. El comprobante no expone motivo interno ni valores antes/después.
-- Tarifas de dominio centralizadas: rutas internacionales identificadas al 10%; recargas/paqueticos/servicios/facturas al 5%; ruta nacional RD→RD al 8%; Haití→Haití usa la tarifa fija por tramos. Las rutas entre monedas deben incluir importe recibido explícito; no se inventan tipos de cambio.
-- El campo de importe recibido se muestra para las rutas transfronterizas que lo necesitan, con moneda de destino indicada en la interfaz.
+## Incluido en esta rama
+- Candidato V31.1 en `public/index.html`, configurado para inicializar Firebase desde el dominio del proyecto 101.
+- Funciones de servidor bajo `backend/functions`, reglas e índices de Firestore.
+- `.firebaserc` y `firebase.json` que apuntan explícitamente al proyecto 101.
+- Workflows de validación y despliegue de vista previa/producción. Producción sólo se activa al integrar en `main`; requiere credencial de despliegue de Firebase.
+- Saldos separados RD$/DOP y HTG/GDES, sin sumar balances durante la fusión ni crear balances o comisiones personales de agentes.
+- Importador deduplicado que prioriza Punto A, completa campos faltantes de Punto B y deja balances ambiguos para revisión. No se ha ejecutado ninguna importación ni se han cambiado balances.
 
-## Validaciones ejecutadas
-- [Validación del candidato: PASS](https://github.com/sendwayo-oficial/sendwayo-express/actions/runs/38053705122).
-- [Validación de integridad: PASS](https://github.com/sendwayo-oficial/sendwayo-express/actions/runs/38053705143).
-- [Integridad de interfaz: PASS](https://github.com/sendwayo-oficial/sendwayo-express/actions/runs/38053705128).
-- [Validación de backend: PASS](https://github.com/sendwayo-oficial/sendwayo-express/actions/runs/38053705130).
-- JavaScript inline: **20 bloques, sin errores de sintaxis**.
-- Pruebas de dominio: **16/16 aprobadas**.
-- Contrato cliente/servidor: **24 llamadas callable del frontend corresponden a 24 exports del backend**.
-- Configuración JSON del backend apunta a `sendwayo-express-app-101`; reglas de Firestore niegan escrituras financieras directas desde el cliente.
+## Validación automática
+- Pruebas de dominio: 16/16 pasan en la última versión validada de la rama de fusión.
+- Sintaxis del backend: validada.
+- Contrato cliente/servidor: las llamadas a funciones configuradas tienen exports correspondientes.
+- Los workflows de validación están configurados para probar la sintaxis de los scripts HTML y el backend en cada actualización.
 
-Estas pruebas son estáticas y de lógica de dominio. **No son una prueba end-to-end con Firebase Authentication, Firestore o Cloud Functions en producción.**
+Estas son pruebas automatizadas de código y lógica; **no equivalen a una prueba de inicio de sesión, sincronización y transacciones contra el Firebase en vivo**.
 
-## Bloqueos antes de desplegar
-1. Aún no se pudo comprobar el proyecto Firebase vivo desde esta sesión: el plugin/conexión administrativa de Firebase no está conectado.
-2. Falta validar con Firebase Emulator Suite y luego con cuentas autorizadas: inicio de sesión de administrador/remitente/agente; notificación operación→administrador; aprobación/rechazo/No Coincide; depósito y ajuste idempotentes; comprobante solo después de aprobación; actualización de saldos y notificaciones entre sesiones/dispositivos.
-3. El repositorio raíz de Punto B conserva el proyecto Firebase antiguo `sendwayo-express`. No se debe reutilizar su `.firebaserc` ni desplegar desde la raíz. El backend de esta fusión está aislado en `backend/.firebaserc` y `backend/firebase.json`, que apuntan a Punto A.
-4. La integración de cuentas históricas debe hacerse con el asistente de importación y un archivo de exportación válido de Punto B. Punto A tiene prioridad; sólo se completan campos vacíos de identidades inequívocas. No se importan balances ambiguos ni se crean balances de agentes.
+## Bloqueos de publicación confirmados
+1. La vista previa de Firebase se omitió porque el secreto de GitHub Actions `FIREBASE_TOKEN` no está configurado en el repositorio del Punto A. El workflow no publicó nada.
+2. No se pudo inspeccionar desde esta sesión el contenido actual servido por el Hosting 101, ni confirmar sus cuentas de Authentication, reglas o colecciones reales. El candidato no debe sustituirse en producción hasta comprobar esos puntos.
+3. Las cuentas antiguas y sus balances requieren exportación/importación y conciliación. El importador no inventa saldos, no suma las dos fuentes y nunca crea billeteras de agentes.
+4. El despliegue del backend usa Cloud Functions for Firebase, que requiere el plan Blaze para desplegar funciones. Si el proyecto está en Spark, la parte de servidor no se desplegará desde Firebase sin resolver ese requisito.
 
-## Regla de seguridad
-No fusionar con `main` ni desplegar en Firebase Hosting hasta que se complete la prueba de integración. No se han cambiado credenciales y no se han trasladado ni puesto a cero balances reales.
+## Próximo paso técnico
+Configurar una credencial de despliegue de Firebase de forma segura en los secretos del repositorio (no compartirla por el chat), ejecutar la vista previa, verificar Authentication y Firestore del proyecto 101, y probar administrador/remitente/agente con cuentas autorizadas antes de integrar el PR en `main`.
