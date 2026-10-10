@@ -1,0 +1,15 @@
+{
+  "hosting": {
+    "public": "public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "backend/**"]
+  },
+  "functions": [{
+    "source": "backend/functions",
+    "codebase": "default",
+    "runtime": "nodejs22"
+  }],
+  "firestore": {
+    "rules": "backend/firestore.rules",
+    "indexes": "backend/firestore.indexes.json"
+  }
+}
