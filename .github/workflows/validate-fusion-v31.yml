@@ -32,16 +32,16 @@ jobs:
           import re, subprocess, tempfile
           html = Path("index.html").read_text(encoding="utf-8")
           index = Path("functions/index.js").read_text(encoding="utf-8")
-          blocks = re.findall(r'<script\\b([^>]*)>([\\s\\S]*?)</script\\s*>', html, re.I)
-          inline = [(attrs, code) for attrs, code in blocks if code.strip() and not re.search(r'\\bsrc\\s*=', attrs, re.I)]
+          blocks = re.findall(r'<script\b([^>]*)>([\s\S]*?)</script\s*>', html, re.I)
+          inline = [(attrs, code) for attrs, code in blocks if code.strip() and not re.search(r'\bsrc\s*=', attrs, re.I)]
           with tempfile.TemporaryDirectory() as tmp:
               for n, (attrs, code) in enumerate(inline, 1):
-                  ext = ".mjs" if re.search(r'type\\s*=\\s*["\\']module', attrs, re.I) else ".js"
+                  ext = ".mjs" if re.search(r'type\s*=\s*["\']module', attrs, re.I) else ".js"
                   path = Path(tmp) / f"inline-{n}{ext}"
                   path.write_text(code, encoding="utf-8")
                   subprocess.run(["node", "--check", str(path)], check=True)
-          client = set(re.findall(r"invoke\\(['\\"]([A-Za-z0-9_]+)['\\"]\\)", html))
-          server = set(re.findall(r"exports\\.([A-Za-z0-9_]+)\\s*=\\s*callable", index))
+          client = set(re.findall(r"invoke\(['\"]([A-Za-z0-9_]+)['\"]\)", html))
+          server = set(re.findall(r"exports\.([A-Za-z0-9_]+)\s*=\s*callable", index))
           if client - server:
               raise SystemExit(f"Cloud Functions missing: {sorted(client-server)}")
           if re.search(r'capital', html, re.I):
