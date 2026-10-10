@@ -1,0 +1,113 @@
+name: Validate SENDWAYO Fusion
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [fusion-a-b-v31-20261010, main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check Firebase target and deployment config
+        run: |
+          node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('.firebaserc','utf8')); if(c.projects.default!=='sendwayo-express-app-101') throw new Error('Wrong Firebase project');"
+          node -e "const c=require('./firebase.json'); if(c.hosting.public!=='public'||c.functions[0].source!=='backend/functions') throw new Error('Invalid deployment paths');"
+      - name: Probe live Firebase Hosting config (read-only)
+        run: |
+          if curl -fsS --max-time 12 "https://sendwayo-express-app-101.web.app/__/firebase/init.json" -o /tmp/sendwayo-firebase-init.json; then
+            PROJECT_ID="$(node -e "const c=JSON.parse(require('fs').readFileSync('/tmp/sendwayo-firebase-init.json','utf8')); process.stdout.write(c.projectId||'')")"
+            if [ "$PROJECT_ID" != "sendwayo-express-app-101" ]; then
+              echo "::error::The Firebase Hosting config returned a different project: $PROJECT_ID"
+              exit 1
+            fi
+            DATABASE_URL="$(node -e "const c=JSON.parse(require('fs').readFileSync('/tmp/sendwayo-firebase-init.json','utf8')); process.stdout.write(c.databaseURL||'')")"
+            if [ -n "$DATABASE_URL" ]; then
+              echo "FIREBASE_DATABASE_CONFIGURED=true"
+              DB_HOST="$(DATABASE_URL="$DATABASE_URL" python -c "from urllib.parse import urlparse; import os; print(urlparse(os.environ['DATABASE_URL']).netloc)")"
+              echo "FIREBASE_DATABASE_HOST=$DB_HOST"
+              DB_STATUS="$(curl -sS --max-time 12 -o /tmp/sendwayo-db-probe.json -w '%{http_code}' "$DATABASE_URL/.json?shallow=true" || true)"
+              echo "FIREBASE_DATABASE_ANONYMOUS_HTTP=$DB_STATUS"
+              if [ "$DB_STATUS" = "200" ]; then
+                node -e "const v=JSON.parse(require('fs').readFileSync('/tmp/sendwayo-db-probe.json','utf8')); console.log('FIREBASE_DATABASE_ANONYMOUS_ROOT_TYPE',v===null?'null':Array.isArray(v)?'array':typeof v); console.log('FIREBASE_DATABASE_ANONYMOUS_ROOT_KEY_COUNT',v&&typeof v==='object'?Object.keys(v).length:0)"
+              echo "::warning::Realtime Database returned HTTP 200 for an unauthenticated shallow read. Treat database rules as potentially public until explicitly verified."
+              fi
+              if grep -qiE 'Permission denied|not authorized|unauthorized' /tmp/sendwayo-db-probe.json 2>/dev/null; then echo "FIREBASE_DATABASE_ANONYMOUS_READ=DENIED"; fi
+            else
+              echo "::warning::The live web config contains no databaseURL; Realtime Database availability needs confirmation."
+            fi
+            echo "Read-only Hosting config confirms project $PROJECT_ID"
+          else
+            echo "::warning::Firebase Hosting init.json could not be verified from the runner; no deployment was attempted by this check."
+          fi
+      - name: Audit currently published Point A HTML (read-only)
+        run: |
+          python - <<'PY'
+          import hashlib, re, urllib.request
+          from pathlib import Path
+          url='https://sendwayo-express-app-101.web.app/'
+          req=urllib.request.Request(url,headers={'User-Agent':'SENDWAYO-read-only-audit/1.0'})
+          with urllib.request.urlopen(req,timeout=25) as response:
+              body=response.read()
+              print('HTTP_STATUS',response.status)
+              print('CONTENT_TYPE',response.headers.get('Content-Type',''))
+          Path('/tmp/sendwayo-point-a-live.html').write_bytes(body)
+          html=body.decode('utf-8','replace')
+          print('LIVE_HTML_BYTES',len(body))
+          print('LIVE_HTML_SHA256',hashlib.sha256(body).hexdigest())
+          m=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+          print('LIVE_HTML_TITLE',re.sub(r'\s+',' ',m.group(1)).strip()[:160] if m else '(no title)')
+          counts={
+            'firebase_auth_signin':r'signInWithEmailAndPassword',
+            'firebase_realtime_database':r'firebase\.database\(',
+            'firebase_firestore':r'firebase\.firestore\(',
+            'firebase_functions_callable':r'httpsCallable',
+            'realtime_value_listeners':r"\.on\(['\"]value['\"]",
+            'firestore_snapshot_listeners':r'onSnapshot',
+            'localStorage_references':r'localStorage',
+            'admin_review_handlers':r'reviewOperation|approveOperation',
+            'notification_handlers':r'notification|notificacion|notificación',
+            'legacy_firebase_domain_mentions':r'sendwayo-express\.firebaseapp\.com'
+          }
+          for label,pattern in counts.items(): print('MARKER',label,len(re.findall(pattern,html,re.I)))
+          srcs=re.findall(r'<script[^>]*\bsrc=["\']([^"\']+)',html,re.I)
+          print('SCRIPT_SRC_COUNT',len(srcs))
+          for src in srcs[:25]: print('SCRIPT_SRC',src[:220])
+          # Do not print authentication config, credentials, or form data.
+          PY
+      - name: Keep live HTML snapshot as temporary diagnostic artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: point-a-live-html-readonly
+          path: /tmp/sendwayo-point-a-live.html
+          retention-days: 1
+      - name: Check backend syntax
+        run: |
+          node --check backend/functions/index.js
+          node --check backend/functions/domain.js
+          node --check backend/functions/test/domain.test.js
+      - name: Run domain tests
+        run: node --test backend/functions/test/domain.test.js
+      - name: Validate Firestore indexes JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('backend/firestore.indexes.json','utf8')); console.log('Firestore indexes JSON OK')"
+      - name: Extract inline JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('public/index.html').read_text(encoding='utf-8')
+          scripts=[s for s in re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', html, re.I) if s.strip()]
+          if not scripts: raise SystemExit('No inline JavaScript found')
+          for i,code in enumerate(scripts,1): Path(f'/tmp/sw-fusion-{i}.js').write_text(code,encoding='utf-8')
+          print('Extracted inline scripts:',len(scripts))
+          PY
+      - name: Check inline JavaScript syntax
+        run: |
+          set -e
+          for f in /tmp/sw-fusion-*.js; do node --check "$f"; done
+          echo 'All inline scripts passed syntax checks'

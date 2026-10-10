@@ -1,0 +1,86 @@
+name: SENDWAYO Firebase Preview and Production
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'backend/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - '.github/workflows/firebase-deploy.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'backend/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - '.github/workflows/firebase-deploy.yml'
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check Firebase deploy credential
+        id: token
+        run: |
+          if [ -n "$FIREBASE_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FIREBASE_TOKEN is not configured. Firebase preview was skipped; the live site was not changed."
+          fi
+      - name: Install Firebase CLI
+        if: steps.token.outputs.available == 'true'
+        run: npm install --global firebase-tools
+      - name: Deploy temporary Hosting preview
+        id: deploy
+        if: steps.token.outputs.available == 'true'
+        run: |
+          set -o pipefail
+          firebase hosting:channel:deploy "pr-${{ github.event.pull_request.number }}" --project sendwayo-express-app-101 --expires 7d --non-interactive --token "$FIREBASE_TOKEN" 2>&1 | tee /tmp/firebase-preview.log
+          URL="$(grep -Eo 'https://[^[:space:]]+--sendwayo-express-app-101\\.web\\.app' /tmp/firebase-preview.log | tail -n 1 || true)"
+          if [ -z "$URL" ]; then URL="$(grep -Eo 'https://[^[:space:]]+\\.web\\.app' /tmp/firebase-preview.log | tail -n 1 || true)"; fi
+          if [ -n "$URL" ]; then echo "url=$URL" >> "$GITHUB_OUTPUT"; fi
+      - name: Add preview link to pull request
+        if: steps.deploy.outputs.url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.url }}';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: 'SENDWAYO V31 preview (expires in 7 days): ' + url + '\\n\\nThis preview uses Firebase project resources. Do not test transactions with real money until the backend and role isolation are verified.'
+            });
+  production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Require Firebase deployment credential
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::error::FIREBASE_TOKEN is not configured in repository secrets. Deployment stopped before making changes."
+            exit 1
+          fi
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+      - name: Publish Hosting, Cloud Functions and Firestore
+        run: firebase deploy --project sendwayo-express-app-101 --only hosting,functions,firestore --non-interactive --token "$FIREBASE_TOKEN"
