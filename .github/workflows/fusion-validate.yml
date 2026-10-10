@@ -30,6 +30,39 @@ jobs:
           else
             echo "::warning::Firebase Hosting init.json could not be verified from the runner; no deployment was attempted by this check."
           fi
+      - name: Audit currently published Point A HTML (read-only)
+        run: |
+          python - <<'PY'
+          import hashlib, re, urllib.request
+          url='https://sendwayo-express-app-101.web.app/'
+          req=urllib.request.Request(url,headers={'User-Agent':'SENDWAYO-read-only-audit/1.0'})
+          with urllib.request.urlopen(req,timeout=25) as response:
+              body=response.read()
+              print('HTTP_STATUS',response.status)
+              print('CONTENT_TYPE',response.headers.get('Content-Type',''))
+          html=body.decode('utf-8','replace')
+          print('LIVE_HTML_BYTES',len(body))
+          print('LIVE_HTML_SHA256',hashlib.sha256(body).hexdigest())
+          m=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+          print('LIVE_HTML_TITLE',re.sub(r'\s+',' ',m.group(1)).strip()[:160] if m else '(no title)')
+          counts={
+            'firebase_auth_signin':r'signInWithEmailAndPassword',
+            'firebase_realtime_database':r'firebase\.database\(',
+            'firebase_firestore':r'firebase\.firestore\(',
+            'firebase_functions_callable':r'httpsCallable',
+            'realtime_value_listeners':r"\.on\(['\"]value['\"]",
+            'firestore_snapshot_listeners':r'onSnapshot',
+            'localStorage_references':r'localStorage',
+            'admin_review_handlers':r'reviewOperation|approveOperation',
+            'notification_handlers':r'notification|notificacion|notificación',
+            'legacy_firebase_domain_mentions':r'sendwayo-express\.firebaseapp\.com'
+          }
+          for label,pattern in counts.items(): print('MARKER',label,len(re.findall(pattern,html,re.I)))
+          srcs=re.findall(r'<script[^>]*\bsrc=["\']([^"\']+)',html,re.I)
+          print('SCRIPT_SRC_COUNT',len(srcs))
+          for src in srcs[:25]: print('SCRIPT_SRC',src[:220])
+          # Do not print authentication config, credentials, or form data.
+          PY
       - name: Check backend syntax
         run: |
           node --check backend/functions/index.js
