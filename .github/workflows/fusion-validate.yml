@@ -29,7 +29,12 @@ jobs:
             DATABASE_URL="$(node -e "const c=JSON.parse(require('fs').readFileSync('/tmp/sendwayo-firebase-init.json','utf8')); process.stdout.write(c.databaseURL||'')")"
             if [ -n "$DATABASE_URL" ]; then
               echo "FIREBASE_DATABASE_CONFIGURED=true"
-              echo "FIREBASE_DATABASE_HOST=$(python -c "from urllib.parse import urlparse; import os; print(urlparse(os.environ['DATABASE_URL']).netloc)" DATABASE_URL="$DATABASE_URL")"
+              DB_HOST="$(DATABASE_URL="$DATABASE_URL" python -c "from urllib.parse import urlparse; import os; print(urlparse(os.environ['DATABASE_URL']).netloc)")"
+              echo "FIREBASE_DATABASE_HOST=$DB_HOST"
+              DB_STATUS="$(curl -sS --max-time 12 -o /tmp/sendwayo-db-probe.json -w '%{http_code}' "$DATABASE_URL/.json?shallow=true" || true)"
+              echo "FIREBASE_DATABASE_ANONYMOUS_HTTP=$DB_STATUS"
+              if [ "$DB_STATUS" = "200" ]; then echo "::warning::Realtime Database allows an anonymous shallow read; review its security rules before moving financial data."; fi
+              if grep -qiE 'Permission denied|not authorized|unauthorized' /tmp/sendwayo-db-probe.json 2>/dev/null; then echo "FIREBASE_DATABASE_ANONYMOUS_READ=DENIED"; fi
             else
               echo "::warning::The live web config contains no databaseURL; Realtime Database availability needs confirmation."
             fi
