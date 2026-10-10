@@ -34,15 +34,8 @@ jobs:
               DB_STATUS="$(curl -sS --max-time 12 -o /tmp/sendwayo-db-probe.json -w '%{http_code}' "$DATABASE_URL/.json?shallow=true" || true)"
               echo "FIREBASE_DATABASE_ANONYMOUS_HTTP=$DB_STATUS"
               if [ "$DB_STATUS" = "200" ]; then
-                python - <<'PY'
-                import json
-                try:
-                    data=json.load(open('/tmp/sendwayo-db-probe.json',encoding='utf-8'))
-                    print('FIREBASE_DATABASE_ANONYMOUS_ROOT_TYPE',type(data).__name__)
-                    print('FIREBASE_DATABASE_ANONYMOUS_ROOT_KEY_COUNT',len(data) if isinstance(data,dict) else 0)
-                except Exception: print('FIREBASE_DATABASE_PROBE_PARSE=failed')
-                PY
-                echo "::warning::Realtime Database returned HTTP 200 for an unauthenticated shallow read. Treat database rules as potentially public until explicitly verified."
+                node -e "const v=JSON.parse(require('fs').readFileSync('/tmp/sendwayo-db-probe.json','utf8')); console.log('FIREBASE_DATABASE_ANONYMOUS_ROOT_TYPE',v===null?'null':Array.isArray(v)?'array':typeof v); console.log('FIREBASE_DATABASE_ANONYMOUS_ROOT_KEY_COUNT',v&&typeof v==='object'?Object.keys(v).length:0)"
+              echo "::warning::Realtime Database returned HTTP 200 for an unauthenticated shallow read. Treat database rules as potentially public until explicitly verified."
               fi
               if grep -qiE 'Permission denied|not authorized|unauthorized' /tmp/sendwayo-db-probe.json 2>/dev/null; then echo "FIREBASE_DATABASE_ANONYMOUS_READ=DENIED"; fi
             else
