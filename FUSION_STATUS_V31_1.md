@@ -31,5 +31,11 @@ Estas son pruebas automatizadas de código y lógica; **no equivalen a una prueb
 3. Las cuentas antiguas y sus balances requieren exportación/importación y conciliación. El importador no inventa saldos, no suma las dos fuentes y nunca crea billeteras de agentes.
 4. El despliegue del backend usa Cloud Functions for Firebase, que requiere el plan Blaze para desplegar funciones. Si el proyecto está en Spark, la parte de servidor no se desplegará desde Firebase sin resolver ese requisito.
 
+## Auditoría final del Firebase vivo (solo lectura)
+- `https://sendwayo-express-app-101.web.app/` responde HTTP 200 y sirve `Sendwayo Express — V20 finanzas corregidas` (749,871 bytes; SHA-256 `2d2e128f010ac2067a314d829a2f1149f9b98a9cbafd21bc031a7bb7e2839012`).
+- El HTML público no contiene las rutas SDK/auth/listeners Firebase esperadas; el flujo de login y el libro financiero siguen en localStorage. Esto coincide con la falta de sincronización entre dispositivos.
+- Firebase publica un Realtime Database endpoint `sendwayo-express-app-101-default-rtdb.firebaseio.com`. Una consulta anónima de solo lectura al root con `shallow=true` respondió HTTP 200 y `null` (0 keys), así que no se observaron registros en ese root. Aun así, las reglas deben ser verificadas y cerradas antes de guardar datos financieros.
+- La vista previa de Firebase NO se publicó: el workflow detectó que el secreto `FIREBASE_TOKEN` no está configurado y omitió expresamente `Install Firebase CLI` y `Deploy temporary Hosting preview`. El trabajo de validación acabó bien, pero esto no significa que se haya desplegado.
+
 ## Próximo paso técnico
-Configurar una credencial de despliegue de Firebase de forma segura en los secretos del repositorio (no compartirla por el chat), ejecutar la vista previa, verificar Authentication y Firestore del proyecto 101, y probar administrador/remitente/agente con cuentas autorizadas antes de integrar el PR en `main`.
+En el repositorio `sendwayoexpress-afk/sendwayo-express`, abre **Settings → Secrets and variables → Actions → New repository secret** y configura `FIREBASE_TOKEN` mediante la sesión local de Firebase CLI o la credencial de despliegue configurada por tu administrador. **No pegues ese token en el chat.** Después de añadirlo, volver a ejecutar la vista previa. Antes de integrar en `main`, confirmar si el proyecto permite Cloud Functions (plan Blaze), verificar las reglas del RTDB y probar los tres roles con las cuentas autorizadas.
