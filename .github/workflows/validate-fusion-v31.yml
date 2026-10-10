@@ -1,0 +1,52 @@
+name: Validate SENDWAYO Fusion V31
+on:
+  push:
+    branches: [fusion-punto-a-b-v31-20261010]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate Firebase configuration JSON
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('firebase.json','utf8'));"
+          node -e "JSON.parse(require('fs').readFileSync('firestore.indexes.json','utf8'));"
+          node -e "JSON.parse(require('fs').readFileSync('.firebaserc','utf8'));"
+      - name: Validate backend and run business-rule tests
+        working-directory: functions
+        run: |
+          node --check index.js
+          node --check domain.js
+          node --test test/domain.test.js
+      - name: Validate frontend scripts and client/server contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          html = Path("index.html").read_text(encoding="utf-8")
+          index = Path("functions/index.js").read_text(encoding="utf-8")
+          blocks = re.findall(r'<script\b([^>]*)>([\s\S]*?)</script\s*>', html, re.I)
+          inline = [(attrs, code) for attrs, code in blocks if code.strip() and not re.search(r'\bsrc\s*=', attrs, re.I)]
+          with tempfile.TemporaryDirectory() as tmp:
+              for n, (attrs, code) in enumerate(inline, 1):
+                  ext = ".mjs" if re.search(r'type\s*=\s*["\']module', attrs, re.I) else ".js"
+                  path = Path(tmp) / f"inline-{n}{ext}"
+                  path.write_text(code, encoding="utf-8")
+                  subprocess.run(["node", "--check", str(path)], check=True)
+          client = set(re.findall(r"invoke\(['\"]([A-Za-z0-9_]+)['\"]\)", html))
+          server = set(re.findall(r"exports\.([A-Za-z0-9_]+)\s*=\s*callable", index))
+          if client - server:
+              raise SystemExit(f"Cloud Functions missing: {sorted(client-server)}")
+          if re.search(r'capital', html, re.I):
+              raise SystemExit("Capital module/text must not be in the candidate")
+          if "balanceDOP" not in html or "balanceHTG" not in html:
+              raise SystemExit("Both RD$/HTG balance fields are required")
+          print(f"Validated {len(inline)} inline scripts and {len(client)} matching callable functions.")
+          PY
