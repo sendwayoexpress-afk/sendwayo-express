@@ -1,0 +1,45 @@
+name: Validate SENDWAYO Fusion
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [fusion-a-b-v31-20261010, main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check Firebase target and deployment config
+        run: |
+          node -e "const c=require('./.firebaserc'); if(c.projects.default!=='sendwayo-express-app-101') throw new Error('Wrong Firebase project');"
+          node -e "const c=require('./firebase.json'); if(c.hosting.public!=='public'||c.functions[0].source!=='backend/functions') throw new Error('Invalid deployment paths');"
+      - name: Check backend syntax
+        run: |
+          node --check backend/functions/index.js
+          node --check backend/functions/domain.js
+          node --check backend/functions/test/domain.test.js
+      - name: Run domain tests
+        run: node --test backend/functions/test/domain.test.js
+      - name: Validate Firestore indexes JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('backend/firestore.indexes.json','utf8')); console.log('Firestore indexes JSON OK')"
+      - name: Extract inline JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('public/index.html').read_text(encoding='utf-8')
+          scripts=[s for s in re.findall(r'<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>', html, re.I) if s.strip()]
+          if not scripts: raise SystemExit('No inline JavaScript found')
+          for i,code in enumerate(scripts,1): Path(f'/tmp/sw-fusion-{i}.js').write_text(code,encoding='utf-8')
+          print('Extracted inline scripts:',len(scripts))
+          PY
+      - name: Check inline JavaScript syntax
+        run: |
+          set -e
+          for f in /tmp/sw-fusion-*.js; do node --check "$f"; done
+          echo 'All inline scripts passed syntax checks'
